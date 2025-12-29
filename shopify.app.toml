@@ -2,7 +2,7 @@
 
 client_id = "0e10f862d789f432972bec947e8429eb"
 name = "custom test app"
-application_url = "https://example.com"
+application_url = "https://custom-app-test.onrender.com"
 embedded = true
 
 [build]
