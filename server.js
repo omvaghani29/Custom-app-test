@@ -12,17 +12,23 @@ const HOST = process.env.HOST || "0.0.0.0";
 
 const server = createServer(async (req, res) => {
   try {
-    const response = await build(new Request(`http://${req.headers.host}${req.url}`, {
+    const url = new URL(req.url || "/", `http://${req.headers.host}`);
+    const request = new Request(url, {
       method: req.method,
       headers: req.headers,
-      body: req.method !== "GET" && req.method !== "HEAD" ? req : undefined,
-    }));
+    });
 
+    const response = await build(request);
+    
     res.writeHead(response.status, Object.fromEntries(response.headers));
-    res.end(await response.text());
+    if (response.body) {
+      res.end(await response.text());
+    } else {
+      res.end();
+    }
   } catch (error) {
     console.error("Request error:", error);
-    res.writeHead(500);
+    res.writeHead(500, { "Content-Type": "text/plain" });
     res.end("Internal Server Error");
   }
 });
