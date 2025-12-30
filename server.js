@@ -5,15 +5,21 @@ import { dirname, join } from "path";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const buildPath = join(__dirname, "build", "server", "index.js");
 
-// Fix: Handle the import more flexibly
-let build;
+// Import the server build
+let handler;
 try {
-  const imported = await import(buildPath);
-  build = imported.default || imported.build || imported;
+  const build = await import(buildPath);
   
-  // If it's still not a function, it might be an object with a handler property
-  if (typeof build !== 'function' && typeof build?.handler === 'function') {
-    build = build.handler;
+  // React Router typically exports a default request handler
+  // Try different possible export patterns
+  handler = build.default?.fetch || 
+            build.default || 
+            build.fetch || 
+            build.handler ||
+            build;
+  
+  if (typeof handler !== 'function') {
+    throw new Error('No valid handler function found in build');
   }
 } catch (error) {
   console.error("Failed to import build file:", error);
@@ -25,14 +31,20 @@ const HOST = process.env.HOST || "0.0.0.0";
 
 const server = createServer(async (req, res) => {
   try {
-    const response = await build(new Request(`http://${req.headers.host}${req.url}`, {
+    // Create a Web API Request object
+    const request = new Request(`http://${req.headers.host}${req.url}`, {
       method: req.method,
       headers: req.headers,
       body: req.method !== "GET" && req.method !== "HEAD" ? req : undefined,
-    }));
+    });
+
+    const response = await handler(request);
 
     res.writeHead(response.status, Object.fromEntries(response.headers));
-    res.end(await response.text());
+    
+    // Use arrayBuffer for binary data support
+    const body = await response.arrayBuffer();
+    res.end(Buffer.from(body));
   } catch (error) {
     console.error("Request error:", error);
     res.writeHead(500);
