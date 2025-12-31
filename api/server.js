@@ -5,6 +5,13 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // Vercel API Route Handler
 export default async function handler(req, res) {
+  console.log('--- Incoming request ---');
+  console.log('Method:', req.method);
+  console.log('URL:', req.url);
+  console.log('Headers:', req.headers);
+  console.log('Query:', req.query);
+  console.log('Body:', req.body); // Vercel auto-parses when possible [web:8]
+  console.log('------------------------');
   try {
     // Load build dynamically on each request
     let buildModule;
