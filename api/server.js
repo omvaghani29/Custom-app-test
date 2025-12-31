@@ -7,16 +7,33 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 export default async function handler(req, res) {
   try {
     // Load build dynamically on each request
-    // On Vercel, the build is at ../build relative to the api directory
     let buildModule;
-    try {
-      const buildPath = join(__dirname, "..", "build", "server", "index.js");
-      buildModule = await import(buildPath);
-    } catch (pathError) {
-      // Try alternative path in case build structure is different
-      console.error("Failed to load from standard path, trying alternative...", pathError.message);
-      const altPath = join(__dirname, "..", ".vercel", "output", "functions", "api", "server.js");
-      buildModule = await import(altPath);
+    
+    // Try multiple possible paths for the build
+    const possiblePaths = [
+      // Standard React Router build
+      join(__dirname, "..", "build", "server", "index.js"),
+      // Vercel output structure
+      join(__dirname, "..", ".vercel", "output", "functions", "api", "server.js"),
+      // Vercel functions directory
+      join(__dirname, "..", "functions", "server.js"),
+    ];
+    
+    let lastError;
+    for (const buildPath of possiblePaths) {
+      try {
+        console.log(`Attempting to load build from: ${buildPath}`);
+        buildModule = await import(buildPath);
+        console.log(`Successfully loaded from: ${buildPath}`);
+        break;
+      } catch (err) {
+        lastError = err;
+        console.log(`Failed to load from ${buildPath}: ${err.message}`);
+      }
+    }
+    
+    if (!buildModule) {
+      throw lastError || new Error("Could not load build from any path");
     }
 
     const build = buildModule.default || buildModule;
