@@ -8,8 +8,7 @@
   "functions": {
     "api/server.js": {
       "memory": 1024,
-      "maxDuration": 60,
-      "runtime": "nodejs@20.x"
+      "maxDuration": 60
     }
   },
   "rewrites": [
