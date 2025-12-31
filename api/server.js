@@ -6,7 +6,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 let build;
 
 // React Router builds to build/server/index.js
-const buildPath = join(__dirname, "build", "server", "index.js");
+const buildPath = join(__dirname, "..", "build", "server", "index.js");
 
 try {
   const buildModule = await import(buildPath);
@@ -17,7 +17,7 @@ try {
   throw new Error(`Build module not found at ${buildPath}. Make sure to run 'npm run build' first.`);
 }
 
-// Vercel Serverless Function Handler
+// Vercel API Route Handler
 export default async function handler(req, res) {
   try {
     if (!build || !build.handleRequest) {
@@ -42,18 +42,4 @@ export default async function handler(req, res) {
     res.statusCode = 500;
     res.end("Internal Server Error");
   }
-}
-
-// For local development
-if (process.env.NODE_ENV !== "production") {
-  const { createServer } = await import("http");
-  
-  const PORT = process.env.PORT || 3000;
-  const HOST = "0.0.0.0";
-
-  const server = createServer(handler);
-
-  server.listen(PORT, HOST, () => {
-    console.log(`Server running on ${HOST}:${PORT}`);
-  });
 }
