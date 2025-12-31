@@ -45,7 +45,9 @@ export default defineConfig({
     },
   },
   plugins: [
-    reactRouter(),
+    reactRouter({
+      presets: ["vercel"],
+    }),
     tsconfigPaths(),
   ],
   build: {

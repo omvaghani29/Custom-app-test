@@ -3,25 +3,29 @@ import { dirname, join } from "path";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-let build;
-
-// React Router builds to build/server/index.js
-const buildPath = join(__dirname, "..", "build", "server", "index.js");
-
-try {
-  const buildModule = await import(buildPath);
-  build = buildModule.default || buildModule;
-  console.log(`Successfully loaded build from: ${buildPath}`);
-} catch (error) {
-  console.error("Failed to load build module:", error.message);
-  throw new Error(`Build module not found at ${buildPath}. Make sure to run 'npm run build' first.`);
-}
-
 // Vercel API Route Handler
 export default async function handler(req, res) {
   try {
-    if (!build || !build.handleRequest) {
-      throw new Error("Build handler not found");
+    // Load build dynamically on each request
+    // On Vercel, the build is at ../build relative to the api directory
+    let buildModule;
+    try {
+      const buildPath = join(__dirname, "..", "build", "server", "index.js");
+      buildModule = await import(buildPath);
+    } catch (pathError) {
+      // Try alternative path in case build structure is different
+      console.error("Failed to load from standard path, trying alternative...", pathError.message);
+      const altPath = join(__dirname, "..", ".vercel", "output", "functions", "api", "server.js");
+      buildModule = await import(altPath);
+    }
+
+    const build = buildModule.default || buildModule;
+
+    if (!build || typeof build.handleRequest !== 'function') {
+      console.error("Build handler not found or not a function");
+      res.statusCode = 500;
+      res.end("Build handler not found");
+      return;
     }
 
     const response = await build.handleRequest(req, {
@@ -38,8 +42,9 @@ export default async function handler(req, res) {
     const body = await response.text();
     res.end(body);
   } catch (error) {
-    console.error("Server error:", error);
+    console.error("Server error:", error.message);
+    console.error("Stack:", error.stack);
     res.statusCode = 500;
-    res.end("Internal Server Error");
+    res.end("Internal Server Error: " + error.message);
   }
 }
