@@ -18,6 +18,9 @@ if (!entryModule || typeof entryModule.default !== 'function') {
   throw new Error("Entry module doesn't export a default handler");
 }
 
+// Check the handler signature
+console.log("Handler function:", entryModule.default.toString().substring(0, 200));
+
 const PORT = parseInt(process.env.PORT || "3000", 10);
 const HOST = process.env.HOST || "0.0.0.0";
 
@@ -29,21 +32,37 @@ const server = createServer(async (req, res) => {
       body: ["GET", "HEAD"].includes(req.method) ? undefined : req,
     });
 
-    // Create the context that React Router expects
-    const context = {
-      manifest: {
-        routes: build.routes,
-        entry: build.entry,
-        url: build.publicPath,
-      },
-      serverHandoffString: null,
-      serverHandoffStream: null,
-      criticalCss: null,
-      serverFunctions: {},
-    };
-
-    // Call the handler with request and context
-    const response = await entryModule.default(request, context);
+    // Try calling with just the request first
+    let response;
+    
+    try {
+      // Option 1: Call with request and build
+      response = await entryModule.default(request, {
+        build: build,
+        mode: process.env.NODE_ENV || "production",
+        getLoadContext: () => ({
+          manifest: {
+            routes: build.routes,
+            entry: build.entry,
+            url: build.publicPath || "/",
+            assets: build.assets,
+          },
+        }),
+      });
+    } catch (err) {
+      console.log("First attempt failed, trying alternative...");
+      
+      // Option 2: Maybe it needs different parameters
+      response = await entryModule.default(request, {
+        manifest: {
+          routes: build.routes,
+          entry: build.entry,
+          url: build.publicPath || "/",
+          assets: build.assets,
+        },
+        build: build,
+      });
+    }
 
     res.writeHead(response.status, Object.fromEntries(response.headers));
 
@@ -55,6 +74,7 @@ const server = createServer(async (req, res) => {
     }
   } catch (error) {
     console.error("Request error:", error);
+    console.error("Error stack:", error.stack);
     res.writeHead(500, { "Content-Type": "text/plain" });
     res.end("Internal Server Error");
   }
