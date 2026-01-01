@@ -1,4 +1,4 @@
-import { createRequestHandler } from "@react-router/node";
+import * as ReactRouterNode from "@react-router/node";
 import { createServer } from "http";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
@@ -6,36 +6,43 @@ import { dirname, join } from "path";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const buildPath = join(__dirname, "build", "server", "index.js");
 
-console.log("Loading build from:", buildPath);
+console.log("Checking @react-router/node exports:", Object.keys(ReactRouterNode));
 
-// Import the build configuration (not a handler)
+// Import the build configuration
 const build = await import(buildPath);
 
 console.log("Build exports:", Object.keys(build));
 
-// Convert the build configuration into a request handler
-const handler = createRequestHandler(build);
+// Try different possible exports
+const createHandler = 
+  ReactRouterNode.createRequestHandler || 
+  ReactRouterNode.default?.createRequestHandler ||
+  ReactRouterNode.default;
 
-console.log("Request handler created successfully");
+console.log("Handler creator type:", typeof createHandler);
+
+if (typeof createHandler !== 'function') {
+  console.error("Available exports from @react-router/node:", Object.keys(ReactRouterNode));
+  throw new Error("Could not find handler creator function");
+}
+
+const handler = createHandler(build);
 
 const PORT = parseInt(process.env.PORT || "3000", 10);
 const HOST = process.env.HOST || "0.0.0.0";
 
 const server = createServer(async (req, res) => {
   try {
-    // Create a Web Request object
     const request = new Request(`http://${req.headers.host}${req.url}`, {
       method: req.method,
       headers: req.headers,
       body: ["GET", "HEAD"].includes(req.method) ? undefined : req,
     });
 
-    // Call the handler (not build)
     const response = await handler(request);
 
     res.writeHead(response.status, Object.fromEntries(response.headers));
 
-    // Handle response body properly
     if (response.body) {
       const buffer = await response.arrayBuffer();
       res.end(Buffer.from(buffer));
