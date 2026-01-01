@@ -1,4 +1,3 @@
-import * as ReactRouterNode from "@react-router/node";
 import { createServer } from "http";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
@@ -6,27 +5,49 @@ import { dirname, join } from "path";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const buildPath = join(__dirname, "build", "server", "index.js");
 
-console.log("Checking @react-router/node exports:", Object.keys(ReactRouterNode));
+console.log("Loading build...");
 
-// Import the build configuration
-const build = await import(buildPath);
+// Import the build - it should export a default handler
+const buildModule = await import(buildPath);
 
-console.log("Build exports:", Object.keys(build));
+console.log("Build module keys:", Object.keys(buildModule));
+console.log("Build module default type:", typeof buildModule.default);
 
-// Try different possible exports
-const createHandler = 
-  ReactRouterNode.createRequestHandler || 
-  ReactRouterNode.default?.createRequestHandler ||
-  ReactRouterNode.default;
+// For React Router v7, check if there's a handler in the module
+let handler;
 
-console.log("Handler creator type:", typeof createHandler);
+// Try to find the handler
+if (buildModule.default && typeof buildModule.default === 'function') {
+  handler = buildModule.default;
+} else if (buildModule.default && buildModule.default.fetch) {
+  handler = buildModule.default.fetch;
+} else {
+  // If no direct handler, we need to create one manually
+  const { entry, routes } = buildModule;
+  
+  if (!entry || !routes) {
+    throw new Error("Build doesn't contain entry or routes");
+  }
 
-if (typeof createHandler !== 'function') {
-  console.error("Available exports from @react-router/node:", Object.keys(ReactRouterNode));
-  throw new Error("Could not find handler creator function");
+  // Create a simple handler
+  handler = async (request) => {
+    try {
+      // Import the entry module which should handle requests
+      const entryModule = await import(join(__dirname, "build", "server", entry.module));
+      
+      if (entryModule.default && typeof entryModule.default === 'function') {
+        return await entryModule.default(request, buildModule);
+      }
+      
+      throw new Error("Entry module doesn't export a default handler");
+    } catch (error) {
+      console.error("Handler error:", error);
+      return new Response("Internal Server Error", { status: 500 });
+    }
+  };
 }
 
-const handler = createHandler(build);
+console.log("Handler type:", typeof handler);
 
 const PORT = parseInt(process.env.PORT || "3000", 10);
 const HOST = process.env.HOST || "0.0.0.0";
