@@ -1,59 +1,50 @@
+import { createRequestHandler } from "@react-router/node";
 import { createServer } from "http";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
-import { spawn } from "child_process";
-import { existsSync } from "fs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const buildPath = join(__dirname, "build", "server", "index.js");
 
-// Function to run npm build if needed
-async function ensureBuildExists() {
-  if (!existsSync(buildPath)) {
-    console.log("Build not found. Running npm run build...");
-    return new Promise((resolve, reject) => {
-      const buildProcess = spawn("npm", ["run", "build"], {
-        cwd: __dirname,
-        stdio: "inherit",
-      });
-      buildProcess.on("close", (code) => {
-        if (code === 0) {
-          console.log("Build completed successfully");
-          resolve();
-        } else {
-          reject(new Error(`Build failed with exit code ${code}`));
-        }
-      });
-    });
-  }
-}
+console.log("Loading build from:", buildPath);
 
-// Ensure build exists before loading
-await ensureBuildExists();
+// Import the build configuration (not a handler)
+const build = await import(buildPath);
 
-const buildModule = await import(buildPath);
-console.log("Exported keys:", Object.keys(buildModule));
+console.log("Build exports:", Object.keys(build));
 
-const build = buildModule.default?.build || buildModule.default || buildModule.handler;
+// Convert the build configuration into a request handler
+const handler = createRequestHandler(build);
+
+console.log("Request handler created successfully");
 
 const PORT = parseInt(process.env.PORT || "3000", 10);
 const HOST = process.env.HOST || "0.0.0.0";
 
 const server = createServer(async (req, res) => {
   try {
-    const response = await build(
-      new Request(`http://${req.headers.host}${req.url}`, {
-        method: req.method,
-        headers: req.headers,
-      })
-    );
+    // Create a Web Request object
+    const request = new Request(`http://${req.headers.host}${req.url}`, {
+      method: req.method,
+      headers: req.headers,
+      body: ["GET", "HEAD"].includes(req.method) ? undefined : req,
+    });
+
+    // Call the handler (not build)
+    const response = await handler(request);
 
     res.writeHead(response.status, Object.fromEntries(response.headers));
 
-    res.end(await response.text());
+    // Handle response body properly
+    if (response.body) {
+      const buffer = await response.arrayBuffer();
+      res.end(Buffer.from(buffer));
+    } else {
+      res.end();
+    }
   } catch (error) {
     console.error("Request error:", error);
-    res.writeHead(500);
+    res.writeHead(500, { "Content-Type": "text/plain" });
     res.end("Internal Server Error");
   }
 });
