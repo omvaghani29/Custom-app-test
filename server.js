@@ -1,59 +1,65 @@
+import { createServer } from "http";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
+import { spawn } from "child_process";
+import { existsSync } from "fs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-
-let build;
-
-// React Router builds to build/server/index.js
 const buildPath = join(__dirname, "build", "server", "index.js");
 
-try {
-  const buildModule = await import(buildPath);
-  build = buildModule.default || buildModule;
-  console.log(`Successfully loaded build from: ${buildPath}`);
-} catch (error) {
-  console.error("Failed to load build module:", error.message);
-  throw new Error(`Build module not found at ${buildPath}. Make sure to run 'npm run build' first.`);
-}
-
-// Vercel Serverless Function Handler
-export default async function handler(req, res) {
-  try {
-    if (!build || !build.handleRequest) {
-      throw new Error("Build handler not found");
-    }
-
-    const response = await build.handleRequest(req, {
-      getLoadContext() {
-        return {};
-      },
+// Function to run npm build if needed
+async function ensureBuildExists() {
+  if (!existsSync(buildPath)) {
+    console.log("Build not found. Running npm run build...");
+    return new Promise((resolve, reject) => {
+      const buildProcess = spawn("npm", ["run", "build"], {
+        cwd: __dirname,
+        stdio: "inherit",
+      });
+      buildProcess.on("close", (code) => {
+        if (code === 0) {
+          console.log("Build completed successfully");
+          resolve();
+        } else {
+          reject(new Error(`Build failed with exit code ${code}`));
+        }
+      });
     });
-
-    res.statusCode = response.status;
-    response.headers.forEach((value, key) => {
-      res.setHeader(key, value);
-    });
-
-    const body = await response.text();
-    res.end(body);
-  } catch (error) {
-    console.error("Server error:", error);
-    res.statusCode = 500;
-    res.end("Internal Server Error");
   }
 }
 
-// For local development
-if (process.env.NODE_ENV !== "production") {
-  const { createServer } = await import("http");
-  
-  const PORT = process.env.PORT || 3000;
-  const HOST = "0.0.0.0";
+// Ensure build exists before loading
+await ensureBuildExists();
 
-  const server = createServer(handler);
+const { default: build } = await import(buildPath);
 
-  server.listen(PORT, HOST, () => {
-    console.log(`Server running on ${HOST}:${PORT}`);
-  });
-}
+const PORT = parseInt(process.env.PORT || "3000", 10);
+const HOST = process.env.HOST || "0.0.0.0";
+
+const server = createServer(async (req, res) => {
+  try {
+    const response = await build(
+      new Request(`http://${req.headers.host}${req.url}`, {
+        method: req.method,
+        headers: req.headers,
+      })
+    );
+
+    res.writeHead(response.status, Object.fromEntries(response.headers));
+
+    res.end(await response.text());
+  } catch (error) {
+    console.error("Request error:", error);
+    res.writeHead(500);
+    res.end("Internal Server Error");
+  }
+});
+
+server.listen(PORT, HOST, () => {
+  console.log(`✓ Server running at http://${HOST}:${PORT}`);
+});
+
+process.on("unhandledRejection", (reason) => {
+  console.error("Unhandled Rejection:", reason);
+  process.exit(1);
+});
