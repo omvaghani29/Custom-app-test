@@ -31,7 +31,10 @@ async function ensureBuildExists() {
 // Ensure build exists before loading
 await ensureBuildExists();
 
-const { default: build } = await import(buildPath);
+const buildModule = await import(buildPath);
+console.log("Exported keys:", Object.keys(buildModule));
+
+const build = buildModule.default?.build || buildModule.default || buildModule.handler;
 
 const PORT = parseInt(process.env.PORT || "3000", 10);
 const HOST = process.env.HOST || "0.0.0.0";
