@@ -7,37 +7,15 @@ const buildPath = join(__dirname, "build", "server", "index.js");
 
 console.log("Loading build...");
 
-const buildModule = await import(buildPath);
+const build = await import(buildPath);
 
-console.log("Build module keys:", Object.keys(buildModule));
-console.log("Entry:", buildModule.entry);
-console.log("Entry type:", typeof buildModule.entry);
+console.log("Build loaded successfully");
 
-// Check what entry.module actually is
-if (buildModule.entry) {
-  console.log("Entry.module type:", typeof buildModule.entry.module);
-  console.log("Entry.module:", buildModule.entry.module);
-}
+// Get the entry module handler
+const entryModule = build.entry?.module;
 
-let handler;
-
-// The entry.module is already the imported module, not a path
-if (buildModule.entry?.module) {
-  const entryModule = buildModule.entry.module;
-  
-  console.log("Entry module keys:", Object.keys(entryModule));
-  console.log("Entry module default type:", typeof entryModule.default);
-  
-  if (typeof entryModule.default === 'function') {
-    // The entry module exports a handler
-    handler = async (request) => {
-      return await entryModule.default(request, buildModule);
-    };
-  } else {
-    throw new Error("Entry module doesn't export a default function handler");
-  }
-} else {
-  throw new Error("No entry module found in build");
+if (!entryModule || typeof entryModule.default !== 'function') {
+  throw new Error("Entry module doesn't export a default handler");
 }
 
 const PORT = parseInt(process.env.PORT || "3000", 10);
@@ -51,7 +29,21 @@ const server = createServer(async (req, res) => {
       body: ["GET", "HEAD"].includes(req.method) ? undefined : req,
     });
 
-    const response = await handler(request);
+    // Create the context that React Router expects
+    const context = {
+      manifest: {
+        routes: build.routes,
+        entry: build.entry,
+        url: build.publicPath,
+      },
+      serverHandoffString: null,
+      serverHandoffStream: null,
+      criticalCss: null,
+      serverFunctions: {},
+    };
+
+    // Call the handler with request and context
+    const response = await entryModule.default(request, context);
 
     res.writeHead(response.status, Object.fromEntries(response.headers));
 
