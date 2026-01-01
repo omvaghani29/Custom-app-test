@@ -8,17 +8,15 @@ const build = await import(join(__dirname, "build/server/index.js"));
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = "0.0.0.0";
 
-const server = createServer(async (req, res) => {
+if (typeof build.handleNodeRequest !== "function") {
+  throw new Error("handleNodeRequest is not exported from build");
+}
+
+const server = createServer((req, res) => {
   try {
-    const response = await build.default.fetch(req);
-
-    res.statusCode = response.status;
-    response.headers.forEach((value, key) => {
-      res.setHeader(key, value);
+    build.handleNodeRequest(req, res, {
+      mode: process.env.NODE_ENV || "production",
     });
-
-    const body = response.body ? Buffer.from(await response.arrayBuffer()) : null;
-    res.end(body);
   } catch (error) {
     console.error("Server error:", error);
     res.statusCode = 500;
