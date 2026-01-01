@@ -1,8 +1,6 @@
 import { reactRouter } from "@react-router/dev/vite";
 import { defineConfig, type UserConfig } from "vite";
 import tsconfigPaths from "vite-tsconfig-paths";
-// 1. Import the vercelPreset
-import { vercelPreset } from "@vercel/react-router/vite";
 
 if (
   process.env.HOST &&
@@ -47,10 +45,7 @@ export default defineConfig({
     },
   },
   plugins: [
-    reactRouter({
-      // 2. Use the imported preset function here
-      presets: [vercelPreset()],
-    }),
+    reactRouter(),
     tsconfigPaths(),
   ],
   build: {
