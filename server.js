@@ -7,47 +7,38 @@ const buildPath = join(__dirname, "build", "server", "index.js");
 
 console.log("Loading build...");
 
-// Import the build - it should export a default handler
 const buildModule = await import(buildPath);
 
 console.log("Build module keys:", Object.keys(buildModule));
-console.log("Build module default type:", typeof buildModule.default);
+console.log("Entry:", buildModule.entry);
+console.log("Entry type:", typeof buildModule.entry);
 
-// For React Router v7, check if there's a handler in the module
-let handler;
-
-// Try to find the handler
-if (buildModule.default && typeof buildModule.default === 'function') {
-  handler = buildModule.default;
-} else if (buildModule.default && buildModule.default.fetch) {
-  handler = buildModule.default.fetch;
-} else {
-  // If no direct handler, we need to create one manually
-  const { entry, routes } = buildModule;
-  
-  if (!entry || !routes) {
-    throw new Error("Build doesn't contain entry or routes");
-  }
-
-  // Create a simple handler
-  handler = async (request) => {
-    try {
-      // Import the entry module which should handle requests
-      const entryModule = await import(join(__dirname, "build", "server", entry.module));
-      
-      if (entryModule.default && typeof entryModule.default === 'function') {
-        return await entryModule.default(request, buildModule);
-      }
-      
-      throw new Error("Entry module doesn't export a default handler");
-    } catch (error) {
-      console.error("Handler error:", error);
-      return new Response("Internal Server Error", { status: 500 });
-    }
-  };
+// Check what entry.module actually is
+if (buildModule.entry) {
+  console.log("Entry.module type:", typeof buildModule.entry.module);
+  console.log("Entry.module:", buildModule.entry.module);
 }
 
-console.log("Handler type:", typeof handler);
+let handler;
+
+// The entry.module is already the imported module, not a path
+if (buildModule.entry?.module) {
+  const entryModule = buildModule.entry.module;
+  
+  console.log("Entry module keys:", Object.keys(entryModule));
+  console.log("Entry module default type:", typeof entryModule.default);
+  
+  if (typeof entryModule.default === 'function') {
+    // The entry module exports a handler
+    handler = async (request) => {
+      return await entryModule.default(request, buildModule);
+    };
+  } else {
+    throw new Error("Entry module doesn't export a default function handler");
+  }
+} else {
+  throw new Error("No entry module found in build");
+}
 
 const PORT = parseInt(process.env.PORT || "3000", 10);
 const HOST = process.env.HOST || "0.0.0.0";
