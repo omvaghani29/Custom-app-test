@@ -5,6 +5,14 @@ name = "custom test app"
 application_url = "https://custom-app-test.onrender.com"
 embedded = true
 
+# App description for Shopify App Store
+# Note: This is a basic description. You should also add a detailed description in your Partner Dashboard
+description = "Next3PL is a comprehensive third-party logistics (3PL) integration app that seamlessly connects your Shopify store with fulfillment systems. Automate order syncing, get real-time shipment updates, manage inventory across platforms, and streamline your fulfillment workflow for faster processing and improved tracking visibility."
+
+# Support email for customer inquiries
+# This email will be used in your app listing and for support communications
+support_email = "supporttt@next3pl.com"
+
 [build]
 automatically_update_urls_on_dev = true
 include_config_on_deploy = true

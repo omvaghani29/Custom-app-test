@@ -6,37 +6,46 @@ import { useLoaderData } from "react-router";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import db from "../db.server";
+import { logger } from "../utils/logger.server";
+import { withErrorHandling } from "../utils/error-handler.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  await authenticate.admin(request);
-  
-  // Get shop from URL
-  const url = new URL(request.url);
-  const shopParam = url.searchParams.get("shop");
-  
-  // Get session from database
-  let accessToken = null;
-  let shopDomain = null;
-  
-  // Try to find session by shop parameter first, otherwise get the most recent session
-  const session = shopParam
-    ? await db.session.findFirst({
-        where: { shop: shopParam },
-        orderBy: { expires: "desc" },
-      })
-    : await db.session.findFirst({
-        orderBy: { expires: "desc" },
-      });
-  
-  if (session) {
-    accessToken = session.accessToken;
-    shopDomain = session.shop;
-  }
+  return await withErrorHandling(async () => {
+    await authenticate.admin(request);
+    
+    // Get shop from URL
+    const url = new URL(request.url);
+    const shopParam = url.searchParams.get("shop");
+    
+    logger.info("App index page accessed", { shop: shopParam });
+    
+    // Get session from database
+    let accessToken = null;
+    let shopDomain = null;
+    
+    // Try to find session by shop parameter first, otherwise get the most recent session
+    const session = shopParam
+      ? await db.session.findFirst({
+          where: { shop: shopParam },
+          orderBy: { expires: "desc" },
+        })
+      : await db.session.findFirst({
+          orderBy: { expires: "desc" },
+        });
+    
+    if (session) {
+      accessToken = session.accessToken;
+      shopDomain = session.shop;
+      logger.debug("Session found", { shop: shopDomain });
+    } else {
+      logger.warn("No session found", { shop: shopParam });
+    }
 
-  return {
-    accessToken,
-    shop: shopDomain,
-  };
+    return {
+      accessToken,
+      shop: shopDomain,
+    };
+  }, "Failed to load app index page");
 };
 
 export default function Index() {
