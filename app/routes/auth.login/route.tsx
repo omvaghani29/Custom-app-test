@@ -5,7 +5,6 @@ import { Form, useActionData, useLoaderData } from "react-router";
 
 import { login } from "../../shopify.server";
 import { loginErrorMessage } from "./error.server";
-import { validateShopDomain } from "../../utils/validation.server";
 import { logger } from "../../utils/logger.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -39,35 +38,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   try {
-    const formData = await request.formData();
-    const shop = formData.get("shop") as string | null;
-
-    // Validate shop domain input (only if provided)
-    if (shop) {
-      const validation = validateShopDomain(shop);
-      if (!validation.isValid) {
-        try {
-          logger.warn("Invalid shop domain provided", { shop, errors: validation.errors });
-        } catch (e) {
-          // Logger error shouldn't break the flow
-          console.warn("Invalid shop domain:", shop, validation.errors);
-        }
-        return {
-          errors: {
-            shop: validation.errors.join(", "),
-          },
-        };
-      }
-    }
-
+    // Let Shopify's login function handle everything - it has built-in validation
+    // Don't read the request body here to avoid "Body has already been read" error
     try {
-      logger.info("Login attempt", { shop });
+      logger.info("Login attempt");
     } catch (e) {
       // Logger error shouldn't break the flow
-      console.log("Login attempt for:", shop);
+      console.log("Login attempt");
     }
 
-    // Call login function and handle both errors and LoginError responses
+    // Call login function - it handles validation and request body reading
     let loginResult;
     try {
       loginResult = await login(request);
@@ -92,9 +72,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     try {
       if (errors.shop) {
-        logger.warn("Login failed", { shop, errors });
+        logger.warn("Login failed", { errors });
       } else {
-        logger.info("Login successful", { shop });
+        logger.info("Login successful");
       }
     } catch (e) {
       // Logger error shouldn't break the flow
