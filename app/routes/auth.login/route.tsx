@@ -9,39 +9,78 @@ import { validateShopDomain } from "../../utils/validation.server";
 import { logger } from "../../utils/logger.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  logger.info("Login page accessed", { url: request.url });
-  const errors = loginErrorMessage(await login(request));
+  try {
+    try {
+      logger.info("Login page accessed", { url: request.url });
+    } catch (e) {
+      // Logger error shouldn't break the flow
+      console.log("Login page accessed");
+    }
+    const errors = loginErrorMessage(await login(request));
 
-  return { errors };
+    return { errors };
+  } catch (error) {
+    // Catch any unexpected errors
+    console.error("Login loader error:", error);
+    return { errors: {} };
+  }
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const formData = await request.formData();
-  const shop = formData.get("shop") as string | null;
+  try {
+    const formData = await request.formData();
+    const shop = formData.get("shop") as string | null;
 
-  // Validate shop domain input
-  const validation = validateShopDomain(shop);
-  if (!validation.isValid) {
-    logger.warn("Invalid shop domain provided", { shop, errors: validation.errors });
+    // Validate shop domain input (only if provided)
+    if (shop) {
+      const validation = validateShopDomain(shop);
+      if (!validation.isValid) {
+        try {
+          logger.warn("Invalid shop domain provided", { shop, errors: validation.errors });
+        } catch (e) {
+          // Logger error shouldn't break the flow
+          console.warn("Invalid shop domain:", shop, validation.errors);
+        }
+        return {
+          errors: {
+            shop: validation.errors.join(", "),
+          },
+        };
+      }
+    }
+
+    try {
+      logger.info("Login attempt", { shop });
+    } catch (e) {
+      // Logger error shouldn't break the flow
+      console.log("Login attempt for:", shop);
+    }
+
+    const errors = loginErrorMessage(await login(request));
+
+    try {
+      if (errors.shop) {
+        logger.warn("Login failed", { shop, errors });
+      } else {
+        logger.info("Login successful", { shop });
+      }
+    } catch (e) {
+      // Logger error shouldn't break the flow
+      console.log("Login result:", errors.shop ? "failed" : "success");
+    }
+
+    return {
+      errors,
+    };
+  } catch (error) {
+    // Catch any unexpected errors
+    console.error("Login action error:", error);
     return {
       errors: {
-        shop: validation.errors.join(", "),
+        shop: "An error occurred during login. Please try again.",
       },
     };
   }
-
-  logger.info("Login attempt", { shop });
-  const errors = loginErrorMessage(await login(request));
-
-  if (errors.shop) {
-    logger.warn("Login failed", { shop, errors });
-  } else {
-    logger.info("Login successful", { shop });
-  }
-
-  return {
-    errors,
-  };
 };
 
 export default function Auth() {

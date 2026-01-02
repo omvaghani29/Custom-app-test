@@ -19,11 +19,22 @@ export function validateShopDomain(shop: string | null | undefined): ValidationR
     return { isValid: false, errors };
   }
 
-  // Basic shop domain validation
-  const shopPattern = /^[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]\.myshopify\.com$/;
+  // Basic shop domain validation - more lenient
+  // Allow shop domains with or without .myshopify.com
+  const trimmedShop = shop.trim().toLowerCase();
   
-  if (!shopPattern.test(shop)) {
-    errors.push("Invalid shop domain format. Expected format: yourstore.myshopify.com");
+  // Check if it already has .myshopify.com
+  if (trimmedShop.endsWith('.myshopify.com')) {
+    const shopPattern = /^[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]\.myshopify\.com$/;
+    if (!shopPattern.test(trimmedShop)) {
+      errors.push("Invalid shop domain format. Expected format: yourstore.myshopify.com");
+    }
+  } else {
+    // If no .myshopify.com, validate the shop name part
+    const shopNamePattern = /^[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]$/;
+    if (!shopNamePattern.test(trimmedShop)) {
+      errors.push("Invalid shop name. Use format: yourstore or yourstore.myshopify.com");
+    }
   }
 
   if (shop.length > 255) {
