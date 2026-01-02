@@ -16,7 +16,18 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       // Logger error shouldn't break the flow
       console.log("Login page accessed");
     }
-    const errors = loginErrorMessage(await login(request));
+    
+    // Call login function and handle both errors and LoginError responses
+    let loginResult;
+    try {
+      loginResult = await login(request);
+    } catch (loginError) {
+      // If login throws an error, log it and return empty errors
+      console.error("Login loader error:", loginError);
+      return { errors: {} };
+    }
+    
+    const errors = loginErrorMessage(loginResult);
 
     return { errors };
   } catch (error) {
@@ -56,7 +67,28 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       console.log("Login attempt for:", shop);
     }
 
-    const errors = loginErrorMessage(await login(request));
+    // Call login function and handle both errors and LoginError responses
+    let loginResult;
+    try {
+      loginResult = await login(request);
+      
+      // If login returns a Response (redirect), return it directly
+      if (loginResult instanceof Response) {
+        return loginResult;
+      }
+    } catch (loginError) {
+      // If login throws an error, log it and return a user-friendly message
+      console.error("Login function error:", loginError);
+      const errorMessage = loginError instanceof Error ? loginError.message : String(loginError);
+      return {
+        errors: {
+          shop: `Login failed: ${errorMessage}. Please check your shop domain and try again.`,
+        },
+      };
+    }
+
+    // Process the login result (which should be a LoginError)
+    const errors = loginErrorMessage(loginResult);
 
     try {
       if (errors.shop) {

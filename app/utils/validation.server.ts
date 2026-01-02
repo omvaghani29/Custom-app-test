@@ -25,13 +25,16 @@ export function validateShopDomain(shop: string | null | undefined): ValidationR
   
   // Check if it already has .myshopify.com
   if (trimmedShop.endsWith('.myshopify.com')) {
-    const shopPattern = /^[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]\.myshopify\.com$/;
+    // More lenient pattern - allows numbers, letters, and hyphens
+    // Pattern: at least one character, can have hyphens and numbers
+    const shopPattern = /^[a-zA-Z0-9][a-zA-Z0-9-]*\.myshopify\.com$/;
     if (!shopPattern.test(trimmedShop)) {
       errors.push("Invalid shop domain format. Expected format: yourstore.myshopify.com");
     }
   } else {
     // If no .myshopify.com, validate the shop name part
-    const shopNamePattern = /^[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]$/;
+    // More lenient - just needs to start with alphanumeric
+    const shopNamePattern = /^[a-zA-Z0-9][a-zA-Z0-9-]*$/;
     if (!shopNamePattern.test(trimmedShop)) {
       errors.push("Invalid shop name. Use format: yourstore or yourstore.myshopify.com");
     }
